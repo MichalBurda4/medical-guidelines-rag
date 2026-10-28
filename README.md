@@ -1,32 +1,59 @@
-# React + TypeScript + Vite
+# MediRAG
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A RAG chatbot for medical guidelines. Upload guideline documents, ask a question, and get a
+practical, source-backed answer adapted to the reader's language level (child / teen / adult)
+and audience (patient / business).
 
-Currently, two official plugins are available:
+Requirements and project status: [`docs/requirements.md`](docs/requirements.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Getting started
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- Web UI: http://localhost:5173
+- API: http://localhost:3001
+
+### Optional: LLM answers
+
+Without configuration, answers are assembled from retrieved passages by templates. To generate
+them with OpenAI, set before starting:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o-mini   # optional, this is the default
+```
+
+## Supported files
+
+`.txt`, `.md`, `.csv`, `.pdf`, `.docx` – up to 10 files, 20 MB each.
+
+## Testing
+
+With `npm run dev` running:
+
+```bash
+npm run test:hay-fever
+```
+
+This **removes all indexed documents**, uploads `sample-guidelines/hay-fever.txt` and checks
+answers for each language level and audience.
+
+## Project structure
+
+```
+server/
+  index.ts        Express API
+  rag/            parse → chunk → store → retrieve → generate / profile
+src/              React frontend
+sample-guidelines/ test material
+scripts/          end-to-end tests
+docs/             requirements
+```
+
+## Limitations
+
+- Documents are kept in memory and lost on restart.
+- Retrieval is keyword-based (TF-IDF), not semantic embeddings.

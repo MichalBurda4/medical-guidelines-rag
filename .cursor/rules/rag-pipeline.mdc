@@ -1,0 +1,26 @@
+---
+description: Conventions for the RAG backend (parsing, chunking, storage, retrieval, generation)
+globs: server/**/*.ts
+alwaysApply: false
+---
+
+# RAG pipeline
+
+Flow: `parse.ts` (txt/md/csv/pdf/docx → text) → `chunk.ts` (~900 chars, 150 overlap, breaks at
+paragraph/sentence) → `store.ts` (in-memory `Map` + array) → `retrieve.ts` (TF-IDF cosine, top 4,
+min score 0.02) → `generate.ts` (OpenAI or template fallback) → `profile.ts` (language/audience).
+
+## Rules
+
+- Server imports use the `.js` suffix (`import { x } from './store.js'`) – ESM via `tsx`.
+- Keep the module boundaries: `index.ts` only does HTTP; RAG logic lives in `server/rag/`.
+- `retrieveChunks(query, chunks, topK)` must keep returning `ScoredChunk[]` sorted by score.
+  A future vector store (embeddings + nearest-neighbour) should replace its internals,
+  not its signature.
+- Storage is in-memory: everything is lost on restart. Don't assume persistence.
+- `generateAnswerWithOptionalLlm` must fall back to `generateAnswer` on missing key, HTTP
+  error or empty content – never surface an OpenAI error to the user.
+- LLM prompt: answer ONLY from context, prefer practical outcomes over methodology,
+  say clearly when context is insufficient.
+- New file types: add them in `parse.ts` and throw `Unsupported file type` for anything else.
+- Return API errors as `{ error: string }` with a fitting status code.

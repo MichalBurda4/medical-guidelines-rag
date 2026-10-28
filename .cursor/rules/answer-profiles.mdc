@@ -1,0 +1,34 @@
+---
+description: How language levels and audience profiles shape answers
+globs: server/rag/profile.ts,server/rag/generate.ts,server/types.ts,src/types.ts,src/components/ProfileControls.tsx
+alwaysApply: false
+---
+
+# Answer profiles
+
+Two independent settings, sent by the frontend in the `/api/chat` body:
+
+| Setting | Values | Default |
+|---|---|---|
+| `languageLevel` | `child`, `teen`, `adult` | `adult` |
+| `audience` | `patient`, `business` | `patient` |
+
+Invalid values silently fall back to the defaults in `parseAnswerProfile`.
+
+## Adding or changing a profile value
+
+Types are duplicated between backend and frontend. Update **all** of:
+
+1. `server/types.ts` and `src/types.ts` – the union types
+2. `server/rag/profile.ts` – the allowed-values `Set`, `formatProfiledAnswer` (template path)
+   **and** `buildLlmSystemPrompt` (LLM path)
+3. `src/components/ProfileControls.tsx` – the options list
+4. `scripts/test-hay-fever.mjs` – a test case for the new value
+
+## Wording
+
+- `child`: short sentences, swap jargon via `SIMPLE_TERMS`, max 3 findings, remind to ask an adult/doctor.
+- `teen`: plain language, keep the medical term in parentheses via `TEEN_TERMS`.
+- `adult`: precise wording, educational-not-diagnosis disclaimer.
+- `business`: decision brief – key outcomes, risks, operational notes.
+- New jargon replacements go into the term lists, not inline in the formatter.

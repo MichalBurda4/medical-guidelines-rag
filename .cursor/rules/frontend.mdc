@@ -1,0 +1,16 @@
+---
+description: React frontend conventions
+globs: src/**/*.ts,src/**/*.tsx
+alwaysApply: false
+---
+
+# Frontend
+
+- React 19 function components with named exports (`export function ChatPanel`); `App` is the default export.
+- State lives in `App.tsx` and is passed down as props; components stay presentational.
+- All HTTP calls go through `src/api.ts` using the relative `/api` base (Vite proxies to :3001).
+  Errors are read from the `{ error }` body via `readError`.
+- Show failures as an assistant chat message rather than crashing or using `alert`.
+- Styles: plain CSS in `App.css` / `index.css`, no CSS framework.
+- Frontend types in `src/types.ts` mirror `server/types.ts` – keep them in sync.
+- Run `npm run lint` and `npm run build` after changes.
