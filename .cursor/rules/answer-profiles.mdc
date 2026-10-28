@@ -13,6 +13,8 @@ Two independent settings, sent by the frontend in the `/api/chat` body:
 | `languageLevel` | `child`, `teen`, `adult` | `adult` |
 | `audience` | `patient`, `business` | `patient` |
 
+There are only these two audiences. Do not add a third.
+
 Invalid values silently fall back to the defaults in `parseAnswerProfile`.
 
 ## Adding or changing a profile value

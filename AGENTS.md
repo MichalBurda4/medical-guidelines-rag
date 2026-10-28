@@ -14,7 +14,7 @@ side effects / safety · adherence · patient age · pregnancy · speed of sympt
 
 - `languageLevel`: `child` (~8–11 y) | `teen` (high school) | `adult`
 - `audience`: `patient` (actionable guidance) | `business` (decision brief)
-- A third stakeholder group is still **TBD** – do not invent one without asking.
+  Do not add a third audience without an explicit request.
 
 ## Architecture
 

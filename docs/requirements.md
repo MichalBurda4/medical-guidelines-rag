@@ -22,7 +22,6 @@ practical results and concrete answers** to the user's questions.
 
 - Patients
 - Business staff
-- Third group – **to be decided**
 
 ### Language levels
 
@@ -42,6 +41,5 @@ practical results and concrete answers** to the user's questions.
 
 ## 4. Open points
 
-- Define the third stakeholder group.
 - Retrieval is keyword-based TF-IDF; no embeddings or vector database yet.
 - Documents are stored in memory only and are lost on server restart.
