@@ -1,5 +1,6 @@
-import type { AnswerProfile, ChatSource } from '@medirag/shared'
+import type { AnswerProfile, ChatSource, LlmProvider } from '@medirag/shared'
 import type { ScoredChunk } from '../types.js'
+import { completeChat, resolveLlmProvider } from './llm.js'
 import { buildLlmSystemPrompt, formatProfiledAnswer } from './profile.js'
 
 function excerpt(text: string, max = 220): string {
@@ -78,10 +79,11 @@ export async function generateAnswerWithOptionalLlm(
   question: string,
   chunks: ScoredChunk[],
   profile: AnswerProfile,
-): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey || chunks.length === 0) {
-    return generateAnswer(question, chunks, profile)
+  requestedLlm?: LlmProvider,
+): Promise<{ answer: string; llm: LlmProvider }> {
+  const llm = resolveLlmProvider(requestedLlm)
+  if (llm === 'template' || chunks.length === 0) {
+    return { answer: generateAnswer(question, chunks, profile), llm: 'template' }
   }
 
   const context = chunks
@@ -91,39 +93,15 @@ export async function generateAnswerWithOptionalLlm(
     )
     .join('\n\n')
 
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-        temperature: 0.2,
-        messages: [
-          {
-            role: 'system',
-            content: buildLlmSystemPrompt(profile),
-          },
-          {
-            role: 'user',
-            content: `Context:\n${context}\n\nQuestion: ${question}`,
-          },
-        ],
-      }),
-    })
+  const content = await completeChat(
+    llm,
+    buildLlmSystemPrompt(profile),
+    `Context:\n${context}\n\nQuestion: ${question}`,
+  )
 
-    if (!response.ok) {
-      return generateAnswer(question, chunks, profile)
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    const content = data.choices?.[0]?.message?.content?.trim()
-    return content || generateAnswer(question, chunks, profile)
-  } catch {
-    return generateAnswer(question, chunks, profile)
+  if (!content) {
+    return { answer: generateAnswer(question, chunks, profile), llm: 'template' }
   }
+
+  return { answer: content, llm }
 }

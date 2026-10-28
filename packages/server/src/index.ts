@@ -1,8 +1,9 @@
-import type { ChatResponse, DocumentsResponse } from '@medirag/shared'
+import type { ChatResponse, DocumentsResponse, HealthResponse } from '@medirag/shared'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
 import { buildSources, generateAnswerWithOptionalLlm } from './rag/generate.js'
+import { llmAvailability, parseLlmProvider } from './rag/llm.js'
 import { parseAnswerProfile } from './rag/profile.js'
 import { retrieveChunks } from './rag/retrieve.js'
 import { addDocument, getChunks, listDocuments, removeDocument } from './rag/store.js'
@@ -18,7 +19,7 @@ app.use(cors())
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true })
+  res.json({ ok: true, llm: llmAvailability() } satisfies HealthResponse)
 })
 
 app.get('/api/documents', (_req, res) => {
@@ -69,17 +70,24 @@ app.post('/api/chat', async (req, res) => {
         answer:
           'No documents are indexed yet. Upload guideline files first, then ask your question again.',
         sources: [],
+        llm: 'template',
       } satisfies ChatResponse)
       return
     }
 
     const profile = parseAnswerProfile(req.body)
     const retrieved = retrieveChunks(question, allChunks, 4)
-    const answer = await generateAnswerWithOptionalLlm(question, retrieved, profile)
+    const { answer, llm } = await generateAnswerWithOptionalLlm(
+      question,
+      retrieved,
+      profile,
+      parseLlmProvider(req.body),
+    )
     res.json({
       answer,
       sources: buildSources(retrieved),
       profile,
+      llm,
     } satisfies ChatResponse)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Chat failed.'

@@ -22,8 +22,11 @@ breaks at paragraph/sentence) → `rag/store.ts` (in-memory `Map` + array) → `
   A future vector store (embeddings + nearest-neighbour) should replace its internals,
   not its signature.
 - Storage is in-memory: everything is lost on restart. Don't assume persistence.
-- `generateAnswerWithOptionalLlm` must fall back to `generateAnswer` on missing key, HTTP
-  error or empty content – never surface an OpenAI error to the user.
+- Chat completions go through `rag/llm.ts` (`completeChat`). OpenAI and DeepSeek share that
+  helper; do not copy `fetch` into `generate.ts`. New OpenAI-compatible providers get an
+  entry in `CLOUD` there.
+- `generateAnswerWithOptionalLlm` must fall back to `generateAnswer` (and `llm: 'template'`)
+  on missing key, HTTP error or empty content – never surface a provider error to the user.
 - LLM prompt: answer ONLY from context, prefer practical outcomes over methodology,
   say clearly when context is insufficient.
 - New file types: add them in `parse.ts` and throw `Unsupported file type` for anything else.

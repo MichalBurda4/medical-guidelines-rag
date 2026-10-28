@@ -10,6 +10,7 @@ Requirements and project status: [`docs/requirements.md`](docs/requirements.md).
 
 ```bash
 npm install
+cp packages/server/.env.example packages/server/.env   # keys can stay empty
 npm run dev
 ```
 
@@ -18,13 +19,17 @@ npm run dev
 
 ### Optional: LLM answers
 
-Without configuration, answers are assembled from retrieved passages by templates. To generate
-them with OpenAI, set before starting:
+The sidebar **Answer model** control chooses how the reply is written:
 
-```bash
-export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-4o-mini   # optional, this is the default
-```
+| Choice | Needs | Default model |
+|---|---|---|
+| Template | nothing | assembled from retrieved passages |
+| OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` (`OPENAI_MODEL` to override) |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` (`DEEPSEEK_MODEL` to override) |
+
+Put the keys in `packages/server/.env` (see `packages/server/.env.example`) or export them in the shell, then restart the API.
+
+If the chosen provider has no key or the request fails, the API falls back to templates.
 
 ## Supported files
 

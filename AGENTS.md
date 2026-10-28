@@ -26,8 +26,11 @@ npm workspaces monorepo – three packages under `packages/`:
   - `GET/POST /api/documents`, `DELETE /api/documents/:id`, `POST /api/chat`, `GET /api/health`
   - `src/rag/`: `parse` → `chunk` → `store` (in-memory) → `retrieve` (TF-IDF) → `generate` / `profile`
 - `packages/client` (`@medirag/client`) – React 19 + Vite frontend; Vite proxies `/api` to :3001
-- LLM is optional: with `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) answers come from OpenAI,
-  otherwise from the template fallback. Both paths must keep working.
+- LLM is optional. Chat body field `llm`: `template` | `openai` | `deepseek`.
+  Keys: `OPENAI_API_KEY` (model `OPENAI_MODEL`, default `gpt-4o-mini`) and
+  `DEEPSEEK_API_KEY` (model `DEEPSEEK_MODEL`, default `deepseek-chat`).
+  Missing key, HTTP error or empty content always falls back to the template path.
+  `GET /api/health` reports `{ ok, llm: { openai, deepseek } }` so the UI can disable missing providers.
 
 Anything that crosses the HTTP boundary goes in `@medirag/shared`, never duplicated per side.
 Add a dependency to the package that uses it: `npm install <pkg> -w @medirag/server`.

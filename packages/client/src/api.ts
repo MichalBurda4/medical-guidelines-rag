@@ -5,6 +5,8 @@ import type {
   ChatResponse,
   DocumentRecord,
   DocumentsResponse,
+  HealthResponse,
+  LlmProvider,
 } from '@medirag/shared'
 
 const API_BASE = '/api'
@@ -16,6 +18,12 @@ async function readError(response: Response): Promise<string> {
   } catch {
     return `Request failed (${response.status})`
   }
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${API_BASE}/health`)
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as HealthResponse
 }
 
 export async function fetchDocuments(): Promise<DocumentRecord[]> {
@@ -48,11 +56,13 @@ export async function deleteDocument(id: string): Promise<void> {
 export async function askQuestion(
   question: string,
   profile: AnswerProfile,
+  llm: LlmProvider,
 ): Promise<ChatResponse> {
   const body: ChatRequest = {
     question,
     languageLevel: profile.languageLevel,
     audience: profile.audience,
+    llm,
   }
   const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',

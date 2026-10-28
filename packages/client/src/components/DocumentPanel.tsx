@@ -1,5 +1,11 @@
 import { useRef, useState, type DragEvent } from 'react'
-import type { AudienceProfile, DocumentRecord, LanguageLevel } from '@medirag/shared'
+import type {
+  AudienceProfile,
+  DocumentRecord,
+  LanguageLevel,
+  LlmAvailability,
+  LlmProvider,
+} from '@medirag/shared'
 import { ProfileControls } from './ProfileControls'
 
 interface DocumentPanelProps {
@@ -7,8 +13,11 @@ interface DocumentPanelProps {
   uploading: boolean
   languageLevel: LanguageLevel
   audience: AudienceProfile
+  llm: LlmProvider
+  llmAvailability: LlmAvailability
   onLanguageLevelChange: (value: LanguageLevel) => void
   onAudienceChange: (value: AudienceProfile) => void
+  onLlmChange: (value: LlmProvider) => void
   onAdd: (files: FileList | File[]) => void
   onRemove: (id: string) => void
 }
@@ -24,8 +33,11 @@ export function DocumentPanel({
   uploading,
   languageLevel,
   audience,
+  llm,
+  llmAvailability,
   onLanguageLevelChange,
   onAudienceChange,
+  onLlmChange,
   onAdd,
   onRemove,
 }: DocumentPanelProps) {
@@ -79,8 +91,11 @@ export function DocumentPanel({
       <ProfileControls
         languageLevel={languageLevel}
         audience={audience}
+        llm={llm}
+        llmAvailability={llmAvailability}
         onLanguageLevelChange={onLanguageLevelChange}
         onAudienceChange={onAudienceChange}
+        onLlmChange={onLlmChange}
       />
 
       <section className="docs-section">

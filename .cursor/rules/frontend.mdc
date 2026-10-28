@@ -10,6 +10,8 @@ alwaysApply: false
 - State lives in `App.tsx` and is passed down as props; components stay presentational.
 - All HTTP calls go through `src/api.ts` using the relative `/api` base (Vite proxies to :3001).
   Errors are read from the `{ error }` body via `readError`.
+- `GET /api/health` drives which LLM buttons are enabled (`llm.openai` / `llm.deepseek`).
+  Template is always available. Do not enable a cloud provider locally without that flag.
 - Request/response and profile types come from `@medirag/shared`; `src/types.ts` holds UI-only
   types (`ChatMessage`). Never redeclare an API type locally.
 - Never import from `@medirag/server` – talk to it over HTTP only.

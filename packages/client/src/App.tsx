@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
-import { askQuestion, deleteDocument, fetchDocuments, uploadDocuments } from './api'
+import { askQuestion, deleteDocument, fetchDocuments, fetchHealth, uploadDocuments } from './api'
 import { ChatPanel } from './components/ChatPanel'
 import { DocumentPanel } from './components/DocumentPanel'
-import type { AudienceProfile, DocumentRecord, LanguageLevel } from '@medirag/shared'
+import type {
+  AudienceProfile,
+  DocumentRecord,
+  LanguageLevel,
+  LlmAvailability,
+  LlmProvider,
+} from '@medirag/shared'
 import type { ChatMessage } from './types'
 import './App.css'
 
@@ -17,12 +23,25 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [languageLevel, setLanguageLevel] = useState<LanguageLevel>('adult')
   const [audience, setAudience] = useState<AudienceProfile>('patient')
+  const [llm, setLlm] = useState<LlmProvider>('template')
+  const [llmAvailability, setLlmAvailability] = useState<LlmAvailability>({
+    openai: false,
+    deepseek: false,
+  })
 
   useEffect(() => {
     fetchDocuments()
       .then(setDocuments)
       .catch(() => {
         // API may still be starting; UI remains usable.
+      })
+
+    fetchHealth()
+      .then((health) => {
+        setLlmAvailability(health.llm)
+      })
+      .catch(() => {
+        // Same as documents: UI stays on the template fallback.
       })
   }, [])
 
@@ -80,7 +99,7 @@ export default function App() {
     setIsTyping(true)
 
     try {
-      const { answer, sources } = await askQuestion(text, { languageLevel, audience })
+      const { answer, sources } = await askQuestion(text, { languageLevel, audience }, llm)
       setMessages((current) => [
         ...current,
         {
@@ -117,8 +136,11 @@ export default function App() {
         uploading={uploading}
         languageLevel={languageLevel}
         audience={audience}
+        llm={llm}
+        llmAvailability={llmAvailability}
         onLanguageLevelChange={setLanguageLevel}
         onAudienceChange={setAudience}
+        onLlmChange={setLlm}
         onAdd={addDocuments}
         onRemove={removeDocument}
       />
@@ -128,6 +150,7 @@ export default function App() {
         documentCount={documents.length}
         languageLevel={languageLevel}
         audience={audience}
+        llm={llm}
         onSend={sendMessage}
       />
     </div>

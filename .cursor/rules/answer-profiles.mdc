@@ -12,6 +12,7 @@ Two independent settings, sent by the frontend in the `/api/chat` body:
 |---|---|---|
 | `languageLevel` | `child`, `teen`, `adult` | `adult` |
 | `audience` | `patient`, `business` | `patient` |
+| `llm` (chat body, not part of `AnswerProfile`) | `template`, `openai`, `deepseek` | omitted: OpenAI if keyed, else DeepSeek if keyed, else template |
 
 There are only these two audiences. Do not add a third.
 

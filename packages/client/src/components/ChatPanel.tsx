@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { AudienceProfile, LanguageLevel } from '@medirag/shared'
+import type { AudienceProfile, LanguageLevel, LlmProvider } from '@medirag/shared'
 import type { ChatMessage } from '../types'
 
 interface ChatPanelProps {
@@ -8,6 +8,7 @@ interface ChatPanelProps {
   documentCount: number
   languageLevel: LanguageLevel
   audience: AudienceProfile
+  llm: LlmProvider
   onSend: (text: string) => void
 }
 
@@ -18,11 +19,17 @@ function formatTime(timestamp: number): string {
   })
 }
 
-function profileLabel(languageLevel: LanguageLevel, audience: AudienceProfile): string {
+function profileLabel(
+  languageLevel: LanguageLevel,
+  audience: AudienceProfile,
+  llm: LlmProvider,
+): string {
   const level =
     languageLevel === 'child' ? 'Child' : languageLevel === 'teen' ? 'Teen' : 'Adult'
   const who = audience === 'business' ? 'Business' : 'Patient'
-  return `${level} · ${who}`
+  const model =
+    llm === 'openai' ? 'OpenAI' : llm === 'deepseek' ? 'DeepSeek' : 'Template'
+  return `${level} · ${who} · ${model}`
 }
 
 export function ChatPanel({
@@ -31,6 +38,7 @@ export function ChatPanel({
   documentCount,
   languageLevel,
   audience,
+  llm,
   onSend,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
@@ -63,7 +71,7 @@ export function ChatPanel({
           <p>Ask a question — answers are grounded in retrieved document context</p>
         </div>
         <div className="header-badges">
-          <div className="status-pill">{profileLabel(languageLevel, audience)}</div>
+          <div className="status-pill">{profileLabel(languageLevel, audience, llm)}</div>
           <div className="status-pill muted">
             {documentCount === 0
               ? 'No documents'

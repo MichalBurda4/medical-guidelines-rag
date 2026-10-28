@@ -1,9 +1,20 @@
 export type LanguageLevel = 'child' | 'teen' | 'adult'
 export type AudienceProfile = 'patient' | 'business'
+export type LlmProvider = 'template' | 'openai' | 'deepseek'
 
 export interface AnswerProfile {
   languageLevel: LanguageLevel
   audience: AudienceProfile
+}
+
+export interface LlmAvailability {
+  openai: boolean
+  deepseek: boolean
+}
+
+export interface HealthResponse {
+  ok: true
+  llm: LlmAvailability
 }
 
 export interface DocumentRecord {
@@ -23,12 +34,14 @@ export interface ChatSource {
 
 export interface ChatRequest extends Partial<AnswerProfile> {
   question: string
+  llm?: LlmProvider
 }
 
 export interface ChatResponse {
   answer: string
   sources: ChatSource[]
   profile?: AnswerProfile
+  llm?: LlmProvider
 }
 
 export interface DocumentsResponse {

@@ -20,6 +20,10 @@ async function postJson(url, body) {
 async function main() {
   const health = await fetch(`${API}/health`)
   if (!health.ok) throw new Error('API is not reachable. Start with npm run dev.')
+  const healthBody = await health.json()
+  if (healthBody.ok !== true || typeof healthBody.llm?.openai !== 'boolean' || typeof healthBody.llm?.deepseek !== 'boolean') {
+    throw new Error('GET /api/health must return { ok: true, llm: { openai, deepseek } }.')
+  }
 
   const existing = await (await fetch(`${API}/documents`)).json()
   for (const doc of existing.documents ?? []) {
@@ -43,6 +47,7 @@ async function main() {
         question: 'What are the side effects of nose steroid sprays?',
         languageLevel: 'child',
         audience: 'patient',
+        llm: 'template',
       },
       expect: [/simple answer|grown-up|nose steroid spray|nosebleeds/i],
     },
@@ -52,6 +57,7 @@ async function main() {
         question: 'How fast do antihistamines help hay fever symptoms?',
         languageLevel: 'teen',
         audience: 'patient',
+        llm: 'template',
       },
       expect: [/plain language|1–3 hours|minutes|pollen season/i],
     },
@@ -61,6 +67,7 @@ async function main() {
         question: 'What operational points matter for hay fever season?',
         languageLevel: 'adult',
         audience: 'business',
+        llm: 'template',
       },
       expect: [/Decision brief|Key outcomes|Operational notes/i],
     },
@@ -70,6 +77,7 @@ async function main() {
         question: 'Is treatment safe in pregnancy?',
         languageLevel: 'adult',
         audience: 'patient',
+        llm: 'template',
       },
       expect: [/pregnan|budesonide|saline|decongestant/i],
     },
@@ -79,6 +87,7 @@ async function main() {
         question: 'Why does adherence matter for intranasal steroids?',
         languageLevel: 'adult',
         audience: 'patient',
+        llm: 'template',
       },
       expect: [/adherence|spray technique|pollen season|1–2 weeks/i],
     },
@@ -90,12 +99,13 @@ async function main() {
     const text = `${result.answer}\n${JSON.stringify(result.sources ?? [])}`
     const ok = testCase.expect.every((pattern) => pattern.test(text))
     const sourceOk = (result.sources?.length ?? 0) > 0
-    const pass = ok && sourceOk
+    const llmOk = result.llm === 'template'
+    const pass = ok && sourceOk && llmOk
     console.log(`${pass ? 'PASS' : 'FAIL'}  ${testCase.name}`)
     if (!pass) {
       failed += 1
       console.log(`  answer preview: ${result.answer.slice(0, 220).replace(/\n/g, ' / ')}`)
-      console.log(`  sources: ${result.sources?.length ?? 0}`)
+      console.log(`  sources: ${result.sources?.length ?? 0}  llm: ${result.llm}`)
     }
   }
 

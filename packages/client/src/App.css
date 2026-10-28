@@ -19,6 +19,7 @@
   color: var(--text-on-dark);
   box-shadow: var(--shadow);
   min-height: 0;
+  overflow-y: auto;
 }
 
 .brand {
@@ -279,6 +280,15 @@
 .profile-options button.active {
   border-color: rgba(232, 242, 238, 0.55);
   background: rgba(232, 242, 238, 0.16);
+}
+
+.profile-options button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.profile-options button:disabled:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .messages {
