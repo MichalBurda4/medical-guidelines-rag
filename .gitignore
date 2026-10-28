@@ -10,10 +10,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
 .env
-uploads
-.rag-cache
+.venv
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+packages/server/.venv/
 
 # Editor directories and files
 .vscode/*

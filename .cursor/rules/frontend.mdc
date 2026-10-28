@@ -1,20 +1,20 @@
----
-description: React frontend conventions
-globs: packages/client/**/*.ts,packages/client/**/*.tsx
-alwaysApply: false
----
-
 # Frontend (`packages/client`)
 
 - React 19 function components with named exports (`export function ChatPanel`); `App` is the default export.
 - State lives in `App.tsx` and is passed down as props; components stay presentational.
-- All HTTP calls go through `src/api.ts` using the relative `/api` base (Vite proxies to :3001).
+- All HTTP calls go through `src/api.ts` using the relative `/api` base (Vite proxies to :3001 in
+  dev, nginx proxies to `api:3001` in production).
   Errors are read from the `{ error }` body via `readError`.
 - `GET /api/health` drives which LLM buttons are enabled (`llm.openai` / `llm.deepseek`).
-  Template is always available. Do not enable a cloud provider locally without that flag.
-- Request/response and profile types come from `@medirag/shared`; `src/types.ts` holds UI-only
-  types (`ChatMessage`). Never redeclare an API type locally.
-- Never import from `@medirag/server` – talk to it over HTTP only.
+  There is no template fallback: when neither is available the selected provider is `null`, the
+  composer is disabled and the sidebar explains which key to set. Never send a chat request
+  without a provider.
+- Request/response and profile types live in `src/contract.ts`, together with the UI-only
+  `ChatMessage`. Never redeclare an API type locally.
+- Never import server Python modules – talk to the API over HTTP only.
 - Show failures as an assistant chat message rather than crashing or using `alert`.
 - Styles: plain CSS in `App.css` / `index.css`, no CSS framework.
+- Dev server must keep `host: true` in `vite.config.ts`; inside a container `127.0.0.1` is not
+  reachable from the browser. The proxy target comes from `VITE_PROXY_TARGET` (default
+  `http://localhost:3001`).
 - Run `npm run lint` and `npm run build` from the repo root after changes.

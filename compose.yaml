@@ -1,0 +1,104 @@
+name: medirag
+
+services:
+  # Embeddings run here, locally. CPU-only inside Docker on macOS (no Metal),
+  # see README for the faster native alternative.
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    ports:
+      # Debug only; the API talks to ollama:11434 over the compose network.
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # One-shot helper: compose waits for it, so `api` never starts before the
+  # embedding model exists. It must share the volume with the ollama service.
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    # Reads the same config file as `api`, so EMBEDDING_MODEL cannot drift between
+    # the model that gets pulled and the model the API asks for.
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ollama_models:/root/.ollama
+    # `$$` escapes compose interpolation, so the shell inside the container reads
+    # EMBEDDING_MODEL at runtime instead of baking it in at parse time.
+    entrypoint: ["/bin/sh", "-c", "ollama pull \"$${EMBEDDING_MODEL:-bge-m3}\""]
+    restart: "no"
+
+  chroma:
+    # Pin the server to the client version installed by uv (`uv pip list | grep chromadb`).
+    # A client/server major mismatch fails with obscure errors.
+    image: chromadb/chroma:${CHROMA_VERSION:-1.5.9}
+    volumes:
+      - chroma_data:/data
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+      PERSIST_DIRECTORY: /data
+    ports:
+      - "127.0.0.1:8000:8000"
+    # No in-container healthcheck: the Chroma image has no shell utilities to probe
+    # with. The API waits for the heartbeat itself during startup (`preflight`).
+
+  api:
+    build:
+      context: ./packages/server
+    # The project keeps a single config file at the repo root (`.env`). `env_file`
+    # injects it at runtime, so keys never end up in an image layer; the
+    # `environment` entries below override the host-oriented defaults (127.0.0.1)
+    # with compose service names.
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHROMA_URL: http://chroma:8000
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+      chroma:
+        condition: service_started
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3001/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    # A broken preflight (no LLM key, model missing) must not crash-loop forever.
+    restart: on-failure:3
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+  chroma_data:

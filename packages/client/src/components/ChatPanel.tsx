@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { AudienceProfile, LanguageLevel, LlmProvider } from '@medirag/shared'
-import type { ChatMessage } from '../types'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import type { AudienceProfile, ChatMessage, LanguageLevel, LlmProvider } from '../contract'
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -8,7 +7,8 @@ interface ChatPanelProps {
   documentCount: number
   languageLevel: LanguageLevel
   audience: AudienceProfile
-  llm: LlmProvider
+  llm: LlmProvider | null
+  healthStatus: 'checking' | 'ready'
   onSend: (text: string) => void
 }
 
@@ -19,16 +19,32 @@ function formatTime(timestamp: number): string {
   })
 }
 
+// Models answer with light Markdown (`**Key outcomes**`). The bubble preserves
+// newlines via `white-space: pre-wrap`, so only inline emphasis needs mapping —
+// everything else stays plain text and is escaped by React.
+function renderInlineMarkdown(text: string): ReactNode {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, index) =>
+    index % 2 === 1 ? <strong key={index}>{part}</strong> : part,
+  )
+}
+
 function profileLabel(
   languageLevel: LanguageLevel,
   audience: AudienceProfile,
-  llm: LlmProvider,
+  llm: LlmProvider | null,
+  healthStatus: 'checking' | 'ready',
 ): string {
   const level =
     languageLevel === 'child' ? 'Child' : languageLevel === 'teen' ? 'Teen' : 'Adult'
   const who = audience === 'business' ? 'Business' : 'Patient'
   const model =
-    llm === 'openai' ? 'OpenAI' : llm === 'deepseek' ? 'DeepSeek' : 'Template'
+    llm === 'openai'
+      ? 'OpenAI'
+      : llm === 'deepseek'
+        ? 'DeepSeek'
+        : healthStatus === 'checking'
+          ? 'Connecting'
+          : 'No LLM'
   return `${level} · ${who} · ${model}`
 }
 
@@ -39,6 +55,7 @@ export function ChatPanel({
   languageLevel,
   audience,
   llm,
+  healthStatus,
   onSend,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('')
@@ -51,7 +68,7 @@ export function ChatPanel({
   const submit = (event?: FormEvent) => {
     event?.preventDefault()
     const text = draft.trim()
-    if (!text || isTyping) return
+    if (!text || isTyping || llm === null) return
     onSend(text)
     setDraft('')
   }
@@ -71,7 +88,7 @@ export function ChatPanel({
           <p>Ask a question — answers are grounded in retrieved document context</p>
         </div>
         <div className="header-badges">
-          <div className="status-pill">{profileLabel(languageLevel, audience, llm)}</div>
+          <div className="status-pill">{profileLabel(languageLevel, audience, llm, healthStatus)}</div>
           <div className="status-pill muted">
             {documentCount === 0
               ? 'No documents'
@@ -93,7 +110,7 @@ export function ChatPanel({
           messages.map((message) => (
             <article key={message.id} className={`message ${message.role}`}>
               <div>
-                <div className="bubble">{message.content}</div>
+                <div className="bubble">{renderInlineMarkdown(message.content)}</div>
                 {message.sources && message.sources.length > 0 && (
                   <div className="sources">
                     <span className="sources-label">Sources</span>
@@ -129,11 +146,18 @@ export function ChatPanel({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask about the guidelines…"
+          placeholder={
+            llm !== null
+              ? 'Ask about the guidelines…'
+              : healthStatus === 'checking'
+                ? 'Connecting to the API…'
+                : 'Configure an LLM key in .env at the repo root to ask questions…'
+          }
           rows={1}
           aria-label="Message"
+          disabled={llm === null}
         />
-        <button type="submit" disabled={!draft.trim() || isTyping}>
+        <button type="submit" disabled={!draft.trim() || isTyping || llm === null}>
           Send
         </button>
       </form>

@@ -1,0 +1,127 @@
+# Development stack — the same five services as compose.yaml, run in dev mode.
+#
+#   npm run docker:dev
+#   # equivalently:
+#   docker compose -f compose.dev.yaml up --build
+#
+# No `--env-file` flag: `api` and `ollama-pull` load the repo-root `.env` via
+# `env_file`, `ollama-pull` reads EMBEDDING_MODEL inside the container, and compose
+# reads the same file on its own for `${...}` interpolation (image tags).
+#
+# Differences from compose.yaml (nothing else changes):
+#   api  – uvicorn --reload, app/ mounted from the host  → Python changes reload instantly
+#   web  – Vite dev server instead of nginx, repo mounted → HMR on :5173
+#
+# `name: medirag` matches compose.yaml on purpose: both files share the same
+# ollama_models and chroma_data volumes, so switching between prod and dev does
+# not re-download the 1.2 GB embedding model or lose indexed documents.
+name: medirag
+
+services:
+  # Identical to compose.yaml: embeddings are a runtime dependency, not code.
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    # Same config file as `api` (repo-root `.env`): EMBEDDING_MODEL is resolved
+    # inside the container, so it cannot drift from the model the API requests.
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ollama_models:/root/.ollama
+    # `$$` escapes compose interpolation so the container shell resolves it.
+    entrypoint: ["/bin/sh", "-c", "ollama pull \"$${EMBEDDING_MODEL:-bge-m3}\""]
+    restart: "no"
+
+  chroma:
+    image: chromadb/chroma:${CHROMA_VERSION:-1.5.9}
+    volumes:
+      - chroma_data:/data
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+      PERSIST_DIRECTORY: /data
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  api:
+    build:
+      context: ./packages/server
+    # Repo-root `.env`, injected at runtime; keys never enter an image layer.
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHROMA_URL: http://chroma:8000
+    # DEV: reload on every code change instead of a baked-in image.
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "3001"]
+    volumes:
+      # Only app/ — /app/.venv lives beside it and must not be shadowed by a
+      # bind mount. Read-only: the container never writes source files.
+      - ./packages/server/app:/app/app:ro
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+      chroma:
+        condition: service_started
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3001/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    restart: on-failure:3
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile
+      # DEV: stop at the node stage (node_modules ready) instead of nginx.
+      target: build
+    # DEV: Vite dev server with HMR instead of the production nginx image.
+    working_dir: /app
+    command: ["npm", "run", "dev", "-w", "@medirag/client", "--", "--host", "0.0.0.0"]
+    environment:
+      # Inside the container `localhost` is the web container itself.
+      VITE_PROXY_TARGET: http://api:3001
+    volumes:
+      # Whole repo mounted so client/ changes are picked up by Vite.
+      - .:/app
+      # Anonymous volume: keep the Linux node_modules built in the image; the
+      # host's macOS binaries would break esbuild/rollup.
+      - /app/node_modules
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "5173:5173"
+
+volumes:
+  ollama_models:
+  chroma_data:

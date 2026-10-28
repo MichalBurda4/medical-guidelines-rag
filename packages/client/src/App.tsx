@@ -4,16 +4,24 @@ import { ChatPanel } from './components/ChatPanel'
 import { DocumentPanel } from './components/DocumentPanel'
 import type {
   AudienceProfile,
+  ChatMessage,
   DocumentRecord,
   LanguageLevel,
   LlmAvailability,
   LlmProvider,
-} from '@medirag/shared'
-import type { ChatMessage } from './types'
+} from './contract'
 import './App.css'
+
+type HealthStatus = 'checking' | 'ready'
 
 function createId(): string {
   return crypto.randomUUID()
+}
+
+function pickProvider(availability: LlmAvailability): LlmProvider | null {
+  if (availability.openai) return 'openai'
+  if (availability.deepseek) return 'deepseek'
+  return null
 }
 
 export default function App() {
@@ -23,26 +31,71 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [languageLevel, setLanguageLevel] = useState<LanguageLevel>('adult')
   const [audience, setAudience] = useState<AudienceProfile>('patient')
-  const [llm, setLlm] = useState<LlmProvider>('template')
+  const [llm, setLlm] = useState<LlmProvider | null>(null)
+  // `checking` until the first successful /api/health answer, so the UI does not
+  // flash "No LLM configured" while the request is still in flight.
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking')
   const [llmAvailability, setLlmAvailability] = useState<LlmAvailability>({
     openai: false,
     deepseek: false,
   })
 
   useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+    let attempt = 0
+    let resolved = false
+
+    const retry = () => {
+      if (cancelled) return
+      // 1s, 2s, 4s, capped at 10s while the API is unreachable.
+      const delay = Math.min(1000 * 2 ** attempt, 10_000)
+      attempt += 1
+      timer = window.setTimeout(checkHealth, delay)
+    }
+
+    const checkHealth = () => {
+      fetchHealth()
+        .then((health) => {
+          if (cancelled) return
+          const wasResolved = resolved
+          resolved = true
+          setLlmAvailability(health.llm)
+          setLlm(pickProvider(health.llm))
+          setHealthStatus('ready')
+          // The first health probe failed while the API was starting, so the
+          // catalogue was never loaded. Re-sync it now that the API answers.
+          if (!wasResolved) {
+            fetchDocuments()
+              .then((docs) => {
+                if (!cancelled) setDocuments(docs)
+              })
+              .catch(() => {
+                // Keep whatever we already show.
+              })
+          }
+        })
+        .catch(() => {
+          // Without a retry the UI stayed on "No LLM configured" forever after
+          // a single failed probe (e.g. the API was still booting).
+          retry()
+        })
+    }
+
     fetchDocuments()
-      .then(setDocuments)
+      .then((docs) => {
+        if (!cancelled) setDocuments(docs)
+      })
       .catch(() => {
-        // API may still be starting; UI remains usable.
+        // API may still be starting; the health retry reloads the catalogue.
       })
 
-    fetchHealth()
-      .then((health) => {
-        setLlmAvailability(health.llm)
-      })
-      .catch(() => {
-        // Same as documents: UI stays on the template fallback.
-      })
+    checkHealth()
+
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
   }, [])
 
   const addDocuments = async (files: FileList | File[]) => {
@@ -88,6 +141,8 @@ export default function App() {
   }
 
   const sendMessage = async (text: string) => {
+    if (llm === null) return
+
     const userMessage: ChatMessage = {
       id: createId(),
       role: 'user',
@@ -138,6 +193,7 @@ export default function App() {
         audience={audience}
         llm={llm}
         llmAvailability={llmAvailability}
+        healthStatus={healthStatus}
         onLanguageLevelChange={setLanguageLevel}
         onAudienceChange={setAudience}
         onLlmChange={setLlm}
@@ -151,6 +207,7 @@ export default function App() {
         languageLevel={languageLevel}
         audience={audience}
         llm={llm}
+        healthStatus={healthStatus}
         onSend={sendMessage}
       />
     </div>

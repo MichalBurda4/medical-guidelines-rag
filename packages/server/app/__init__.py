@@ -1,0 +1,1 @@
+"""MediRAG FastAPI server."""
