@@ -1,4 +1,4 @@
-import type { AnswerProfile, AudienceProfile, LanguageLevel } from '../types.js'
+import type { AnswerProfile, AudienceProfile, LanguageLevel } from '@medirag/shared'
 
 const LANGUAGE_LEVELS = new Set<LanguageLevel>(['child', 'teen', 'adult'])
 const AUDIENCES = new Set<AudienceProfile>(['patient', 'business'])

@@ -18,18 +18,27 @@ side effects / safety · adherence · patient age · pregnancy · speed of sympt
 
 ## Architecture
 
-- `server/` – Express 5 API on port 3001, run with `tsx`
+npm workspaces monorepo – three packages under `packages/`:
+
+- `packages/shared` (`@medirag/shared`) – types used by both sides: profiles, `DocumentRecord`,
+  `ChatSource`, API request/response shapes. Types only, no runtime code, no build step.
+- `packages/server` (`@medirag/server`) – Express 5 API on port 3001, run with `tsx`
   - `GET/POST /api/documents`, `DELETE /api/documents/:id`, `POST /api/chat`, `GET /api/health`
-  - `server/rag/`: `parse` → `chunk` → `store` (in-memory) → `retrieve` (TF-IDF) → `generate` / `profile`
-- `src/` – React 19 + Vite frontend; Vite proxies `/api` to :3001
+  - `src/rag/`: `parse` → `chunk` → `store` (in-memory) → `retrieve` (TF-IDF) → `generate` / `profile`
+- `packages/client` (`@medirag/client`) – React 19 + Vite frontend; Vite proxies `/api` to :3001
 - LLM is optional: with `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) answers come from OpenAI,
   otherwise from the template fallback. Both paths must keep working.
 
-## Commands
+Anything that crosses the HTTP boundary goes in `@medirag/shared`, never duplicated per side.
+Add a dependency to the package that uses it: `npm install <pkg> -w @medirag/server`.
 
-- `npm run dev` – API + web together
+## Commands (run from the repo root)
+
+- `npm run dev` – API + web together (`dev:api` / `dev:web` for one side)
+- `npm run typecheck` – `tsc -b` over all three packages
+- `npm run build` – typecheck + Vite production build
+- `npm run lint` – oxlint over the whole repo
 - `npm run test:hay-fever` – end-to-end test against a running API. **Deletes all indexed documents.**
-- `npm run lint`, `npm run build`
 
 ## Ground rules
 

@@ -2,12 +2,8 @@ import { useEffect, useState } from 'react'
 import { askQuestion, deleteDocument, fetchDocuments, uploadDocuments } from './api'
 import { ChatPanel } from './components/ChatPanel'
 import { DocumentPanel } from './components/DocumentPanel'
-import type {
-  AudienceProfile,
-  ChatMessage,
-  LanguageLevel,
-  UploadedDocument,
-} from './types'
+import type { AudienceProfile, DocumentRecord, LanguageLevel } from '@medirag/shared'
+import type { ChatMessage } from './types'
 import './App.css'
 
 function createId(): string {
@@ -15,7 +11,7 @@ function createId(): string {
 }
 
 export default function App() {
-  const [documents, setDocuments] = useState<UploadedDocument[]>([])
+  const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isTyping, setIsTyping] = useState(false)
   const [uploading, setUploading] = useState(false)

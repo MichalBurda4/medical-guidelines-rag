@@ -34,10 +34,10 @@ practical results and concrete answers** to the user's questions.
 
 | # | Task | Status | Where |
 |---|---|---|---|
-| 1 | Simple UI: working chat view with file upload | Done | `src/components/ChatPanel.tsx`, `DocumentPanel.tsx` |
-| 2 | RAG module: retrieve context from documents, generate result-oriented answers | Done | `server/rag/` |
-| 3 | Multi-level language: adapt answers to age group (child / teen / adult) | Done | `server/rag/profile.ts` |
-| 4 | Audience profiling: adapt message format for patients and business | Done | `server/rag/profile.ts` |
+| 1 | Simple UI: working chat view with file upload | Done | `packages/client/src/components/ChatPanel.tsx`, `DocumentPanel.tsx` |
+| 2 | RAG module: retrieve context from documents, generate result-oriented answers | Done | `packages/server/src/rag/` |
+| 3 | Multi-level language: adapt answers to age group (child / teen / adult) | Done | `packages/server/src/rag/profile.ts` |
+| 4 | Audience profiling: adapt message format for patients and business | Done | `packages/server/src/rag/profile.ts` |
 | 5 | Test on the provided hay-fever materials | Done | `sample-guidelines/hay-fever.txt`, `npm run test:hay-fever` |
 
 ## 4. Open points

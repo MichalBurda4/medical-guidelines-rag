@@ -1,4 +1,4 @@
-import type { AudienceProfile, LanguageLevel } from '../types'
+import type { AudienceProfile, LanguageLevel } from '@medirag/shared'
 
 interface ProfileControlsProps {
   languageLevel: LanguageLevel

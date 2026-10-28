@@ -43,15 +43,28 @@ answers for each language level and audience.
 
 ## Project structure
 
+npm workspaces monorepo. Run all commands from the repo root.
+
 ```
-server/
-  index.ts        Express API
-  rag/            parse → chunk → store → retrieve → generate / profile
-src/              React frontend
-sample-guidelines/ test material
-scripts/          end-to-end tests
-docs/             requirements
+packages/
+  shared/   @medirag/shared  – types shared by client and server (API contract)
+  server/   @medirag/server  – Express API
+    src/index.ts               HTTP routes
+    src/rag/                   parse → chunk → store → retrieve → generate / profile
+  client/   @medirag/client  – React + Vite frontend
+sample-guidelines/            test material
+scripts/                      end-to-end tests
+docs/                         requirements
 ```
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | API + web together (`dev:api` / `dev:web` for one side) |
+| `npm run typecheck` | Type-check all packages |
+| `npm run build` | Type-check + production build of the client |
+| `npm run lint` | Lint the whole repo |
+
+Add a dependency to one package with `npm install <pkg> -w @medirag/server` (or `@medirag/client`).
 
 ## Limitations
 

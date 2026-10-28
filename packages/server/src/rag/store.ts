@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { Chunk, DocumentRecord } from '../types.js'
+import type { DocumentRecord } from '@medirag/shared'
+import type { Chunk } from '../types.js'
 import { chunkText } from './chunk.js'
 import { extractText } from './parse.js'
 

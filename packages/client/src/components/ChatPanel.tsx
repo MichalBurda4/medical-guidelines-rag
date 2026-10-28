@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { AudienceProfile, ChatMessage, LanguageLevel } from '../types'
+import type { AudienceProfile, LanguageLevel } from '@medirag/shared'
+import type { ChatMessage } from '../types'
 
 interface ChatPanelProps {
   messages: ChatMessage[]

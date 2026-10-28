@@ -1,24 +1,31 @@
-import type { AnswerProfile, SourceSnippet, UploadedDocument } from './types'
+import type {
+  AnswerProfile,
+  ApiError,
+  ChatRequest,
+  ChatResponse,
+  DocumentRecord,
+  DocumentsResponse,
+} from '@medirag/shared'
 
 const API_BASE = '/api'
 
 async function readError(response: Response): Promise<string> {
   try {
-    const data = (await response.json()) as { error?: string }
+    const data = (await response.json()) as Partial<ApiError>
     return data.error || `Request failed (${response.status})`
   } catch {
     return `Request failed (${response.status})`
   }
 }
 
-export async function fetchDocuments(): Promise<UploadedDocument[]> {
+export async function fetchDocuments(): Promise<DocumentRecord[]> {
   const response = await fetch(`${API_BASE}/documents`)
   if (!response.ok) throw new Error(await readError(response))
-  const data = (await response.json()) as { documents: UploadedDocument[] }
+  const data = (await response.json()) as DocumentsResponse
   return data.documents
 }
 
-export async function uploadDocuments(files: FileList | File[]): Promise<UploadedDocument[]> {
+export async function uploadDocuments(files: FileList | File[]): Promise<DocumentRecord[]> {
   const form = new FormData()
   for (const file of Array.from(files)) {
     form.append('files', file)
@@ -29,7 +36,7 @@ export async function uploadDocuments(files: FileList | File[]): Promise<Uploade
     body: form,
   })
   if (!response.ok) throw new Error(await readError(response))
-  const data = (await response.json()) as { documents: UploadedDocument[] }
+  const data = (await response.json()) as DocumentsResponse
   return data.documents
 }
 
@@ -41,19 +48,17 @@ export async function deleteDocument(id: string): Promise<void> {
 export async function askQuestion(
   question: string,
   profile: AnswerProfile,
-): Promise<{
-  answer: string
-  sources: SourceSnippet[]
-}> {
+): Promise<ChatResponse> {
+  const body: ChatRequest = {
+    question,
+    languageLevel: profile.languageLevel,
+    audience: profile.audience,
+  }
   const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      question,
-      languageLevel: profile.languageLevel,
-      audience: profile.audience,
-    }),
+    body: JSON.stringify(body),
   })
   if (!response.ok) throw new Error(await readError(response))
-  return (await response.json()) as { answer: string; sources: SourceSnippet[] }
+  return (await response.json()) as ChatResponse
 }

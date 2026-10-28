@@ -1,4 +1,5 @@
-import type { AnswerProfile, ChatSource, ScoredChunk } from '../types.js'
+import type { AnswerProfile, ChatSource } from '@medirag/shared'
+import type { ScoredChunk } from '../types.js'
 import { buildLlmSystemPrompt, formatProfiledAnswer } from './profile.js'
 
 function excerpt(text: string, max = 220): string {

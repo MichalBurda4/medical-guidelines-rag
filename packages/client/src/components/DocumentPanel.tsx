@@ -1,9 +1,9 @@
 import { useRef, useState, type DragEvent } from 'react'
-import type { AudienceProfile, LanguageLevel, UploadedDocument } from '../types'
+import type { AudienceProfile, DocumentRecord, LanguageLevel } from '@medirag/shared'
 import { ProfileControls } from './ProfileControls'
 
 interface DocumentPanelProps {
-  documents: UploadedDocument[]
+  documents: DocumentRecord[]
   uploading: boolean
   languageLevel: LanguageLevel
   audience: AudienceProfile

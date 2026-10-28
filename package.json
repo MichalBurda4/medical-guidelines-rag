@@ -3,38 +3,24 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "concurrently -k -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:web": "vite",
-    "dev:api": "tsx watch server/index.ts",
-    "build": "tsc -b && vite build",
+    "dev": "concurrently -k -n api,web -c green,cyan \"npm run dev -w @medirag/server\" \"npm run dev -w @medirag/client\"",
+    "dev:api": "npm run dev -w @medirag/server",
+    "dev:web": "npm run dev -w @medirag/client",
+    "start:api": "npm run start -w @medirag/server",
+    "typecheck": "tsc -b",
+    "build": "tsc -b && npm run build -w @medirag/client",
+    "preview": "npm run preview -w @medirag/client",
     "lint": "oxlint",
-    "preview": "vite preview",
-    "start:api": "tsx server/index.ts",
     "test:hay-fever": "node scripts/test-hay-fever.mjs"
   },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "mammoth": "^1.11.0",
-    "multer": "^2.0.2",
-    "pdf-parse": "^2.4.5",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
-  },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/multer": "^2.0.0",
-    "@types/node": "^24.19.2",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^9.2.1",
     "oxlint": "^1.89.0",
-    "tsx": "^4.20.5",
-    "typescript": "~7.0.2",
-    "vite": "^8.3.5"
+    "typescript": "~7.0.2"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

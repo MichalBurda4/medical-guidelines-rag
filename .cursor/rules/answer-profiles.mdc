@@ -1,6 +1,6 @@
 ---
 description: How language levels and audience profiles shape answers
-globs: server/rag/profile.ts,server/rag/generate.ts,server/types.ts,src/types.ts,src/components/ProfileControls.tsx
+globs: packages/shared/src/**,packages/server/src/rag/profile.ts,packages/server/src/rag/generate.ts,packages/client/src/components/ProfileControls.tsx
 alwaysApply: false
 ---
 
@@ -17,12 +17,12 @@ Invalid values silently fall back to the defaults in `parseAnswerProfile`.
 
 ## Adding or changing a profile value
 
-Types are duplicated between backend and frontend. Update **all** of:
+Update **all** of:
 
-1. `server/types.ts` and `src/types.ts` – the union types
-2. `server/rag/profile.ts` – the allowed-values `Set`, `formatProfiledAnswer` (template path)
-   **and** `buildLlmSystemPrompt` (LLM path)
-3. `src/components/ProfileControls.tsx` – the options list
+1. `packages/shared/src/index.ts` – the `LanguageLevel` / `AudienceProfile` unions (single source of truth)
+2. `packages/server/src/rag/profile.ts` – the allowed-values `Set`, `formatProfiledAnswer`
+   (template path) **and** `buildLlmSystemPrompt` (LLM path)
+3. `packages/client/src/components/ProfileControls.tsx` – the options list
 4. `scripts/test-hay-fever.mjs` – a test case for the new value
 
 ## Wording

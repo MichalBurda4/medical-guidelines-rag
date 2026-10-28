@@ -1,3 +1,4 @@
+import type { ChatResponse, DocumentsResponse } from '@medirag/shared'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
@@ -21,7 +22,7 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.get('/api/documents', (_req, res) => {
-  res.json({ documents: listDocuments() })
+  res.json({ documents: listDocuments() } satisfies DocumentsResponse)
 })
 
 app.post('/api/documents', upload.array('files', 10), async (req, res) => {
@@ -38,7 +39,7 @@ app.post('/api/documents', upload.array('files', 10), async (req, res) => {
       documents.push(record)
     }
 
-    res.status(201).json({ documents })
+    res.status(201).json({ documents } satisfies DocumentsResponse)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Upload failed.'
     res.status(400).json({ error: message })
@@ -68,7 +69,7 @@ app.post('/api/chat', async (req, res) => {
         answer:
           'No documents are indexed yet. Upload guideline files first, then ask your question again.',
         sources: [],
-      })
+      } satisfies ChatResponse)
       return
     }
 
@@ -79,7 +80,7 @@ app.post('/api/chat', async (req, res) => {
       answer,
       sources: buildSources(retrieved),
       profile,
-    })
+    } satisfies ChatResponse)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Chat failed.'
     res.status(500).json({ error: message })
