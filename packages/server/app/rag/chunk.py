@@ -15,6 +15,7 @@ HEADING_MAX_CHARS = 72
 MARKDOWN_HEADING = re.compile(r"^#{1,6}\s+(?P<text>.+)$")
 BULLET_CHARS = "-•*|>"
 
+
 @dataclass
 class Chunk:
     document_id: str

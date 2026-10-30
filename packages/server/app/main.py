@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import logging
-import time
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -10,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
+from app.config import DEV_ORIGINS, EMBEDDING_MODEL, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES
+from app.lifecycle import lifespan
 from app.models import (
     ApiError,
     AnswerProfile,
@@ -20,76 +20,16 @@ from app.models import (
     EmbeddingInfo,
     HealthResponse,
 )
-from app.rag.embed import (
-    EmbeddingUnavailable,
-    embedding_dim,
-    MODEL as EMBEDDING_MODEL,
-    model_installed,
-    warm_up,
-)
 from app.rag.agent import answer_question
+from app.rag.embed import EmbeddingUnavailable, embedding_dim, model_installed
 from app.rag.generate import NO_DOCUMENTS_ANSWER, build_sources
 from app.rag.llm import LlmRequestError, LlmUnavailable, llm_availability
-from app.rag.retrieve import CHROMA_URL, chroma_available
 from app.rag.store import store
 
 # Uvicorn only configures its own loggers, so the agent's retrieval/rewrite trace
 # would be dropped at the root logger's default level. INFO is what makes the
 # rewrite loop observable in `docker compose logs`.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
-
-MAX_UPLOAD_FILES = 10
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-
-# The client talks to the API through the Vite proxy, so browser requests are
-# same-origin. These entries only cover running the dev server on another port.
-DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
-
-
-def _wait_for(check, description: str, timeout: float) -> None:
-    """Poll a dependency during startup instead of relying on container healthchecks.
-
-    The Chroma image ships no shell utilities (no python, curl or wget), so it cannot
-    run a probe of its own; waiting here keeps `depends_on` simple and gives a single
-    place with an actionable error message.
-    """
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if check():
-            return
-        time.sleep(2)
-    raise RuntimeError(f"Timed out waiting for {description}.")
-
-
-def preflight() -> None:
-    """Fail fast: without embeddings, a vector store and an LLM there is no product.
-
-    Raising here stops uvicorn, and `docker compose up --wait` reports the reason
-    instead of letting the container crash-loop quietly.
-    """
-    _wait_for(chroma_available, f"Chroma at {CHROMA_URL}", timeout=90)
-    _wait_for(
-        model_installed,
-        f"embedding model “{EMBEDDING_MODEL}” in Ollama (run `ollama pull {EMBEDDING_MODEL}`)",
-        timeout=120,
-    )
-    warm_up()  # loads the model and verifies the vector dimension
-
-    available = llm_availability()
-    if not (available.openai or available.deepseek):
-        raise RuntimeError(
-            "No LLM configured. Set OPENAI_API_KEY or DEEPSEEK_API_KEY in "
-            ".env at the repo root (or the compose environment)."
-        )
-
-    store.hydrate()  # rebuild the document catalogue from Chroma
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    await run_in_threadpool(preflight)
-    yield
-
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s - %(message)s")
 
 app = FastAPI(title="MediRAG API", lifespan=lifespan)
 app.add_middleware(

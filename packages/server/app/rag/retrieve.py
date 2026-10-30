@@ -7,35 +7,46 @@ dropped, so an off-topic question yields no sources instead of confident noise.
 
 from __future__ import annotations
 
-import os
-from functools import lru_cache
+from urllib.parse import urlsplit
 
 import chromadb
 from chromadb.api.models.Collection import Collection
 
+from app.config import (
+    CHROMA_COLLECTION,
+    CHROMA_DOCUMENTS_COLLECTION,
+    CHROMA_URL,
+    RETRIEVAL_MIN_SCORE,
+    RETRIEVAL_TOP_K,
+)
 from app.rag.chunk import ScoredChunk
-from app.rag.embed import MODEL as EMBEDDING_MODEL, get_embedder
-
-CHROMA_URL = os.getenv("CHROMA_URL", "http://127.0.0.1:8000")
-# The collection name carries the embedding model: switching EMBEDDING_MODEL
-# changes the vector dimension, and Chroma rejects mixed dimensions. Deriving the
-# name from the model means a model switch cannot silently reuse the old vectors.
-_COLLECTION_SUFFIX = EMBEDDING_MODEL.replace("/", "_").replace(":", "_")
-COLLECTION = os.getenv("CHROMA_COLLECTION") or f"chunks_{_COLLECTION_SUFFIX}"
-DOCUMENTS_COLLECTION = os.getenv("CHROMA_DOCUMENTS_COLLECTION") or f"documents_{_COLLECTION_SUFFIX}"
-
-MIN_SCORE = float(os.getenv("RETRIEVAL_MIN_SCORE", "0.48"))
-TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "5"))
+from app.rag.embed import embedder
 
 # Explicit cosine. Do not rely on the default: it is L2, and `1 - distance` would
 # then not be a similarity.
 _COSINE = {"hnsw": {"space": "cosine"}}
 
 
-@lru_cache(maxsize=1)
+_client: chromadb.ClientAPI | None = None
+
+
 def get_client() -> chromadb.ClientAPI:
-    host, _, port = CHROMA_URL.removeprefix("https://").removeprefix("http://").partition(":")
-    return chromadb.HttpClient(host=host or "127.0.0.1", port=int(port or 8000))
+    """Lazily built shared client.
+
+    Constructing a client contacts the server (it fetches the user identity), so
+    this must not happen at import time: importing the app has to work while
+    Chroma is still booting. The preflight owns the "is it up yet?" waiting.
+    """
+    global _client
+    if _client is None:
+        # urlsplit needs a scheme to read host/port; accept scheme-less URLs too
+        # (e.g. `chroma:8000` inside compose).
+        parsed = urlsplit(CHROMA_URL if "://" in CHROMA_URL else f"//{CHROMA_URL}")
+        _client = chromadb.HttpClient(
+            host=parsed.hostname or "127.0.0.1",
+            port=parsed.port or 8000,
+        )
+    return _client
 
 
 def chroma_available() -> bool:
@@ -53,7 +64,7 @@ def chroma_available() -> bool:
 def chunks_collection() -> Collection:
     """embedding_function=None: Chroma must never fetch a model of its own."""
     return get_client().get_or_create_collection(
-        name=COLLECTION,
+        name=CHROMA_COLLECTION,
         configuration=_COSINE,
         embedding_function=None,
     )
@@ -61,7 +72,7 @@ def chunks_collection() -> Collection:
 
 def documents_collection() -> Collection:
     return get_client().get_or_create_collection(
-        name=DOCUMENTS_COLLECTION,
+        name=CHROMA_DOCUMENTS_COLLECTION,
         configuration=_COSINE,
         embedding_function=None,
     )
@@ -77,7 +88,7 @@ def _query_hits(query: str, top_k: int) -> list[ScoredChunk]:
         return []
 
     result = collection.query(
-        query_embeddings=[get_embedder().embed_query(query)],
+        query_embeddings=[embedder.embed_query(query)],
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
@@ -101,7 +112,7 @@ def _query_hits(query: str, top_k: int) -> list[ScoredChunk]:
     return hits
 
 
-def search_with_scores(query: str, top_k: int = TOP_K) -> tuple[list[ScoredChunk], float]:
+def search_with_scores(query: str, top_k: int = RETRIEVAL_TOP_K) -> tuple[list[ScoredChunk], float]:
     """Return the passages that pass the threshold plus the *unfiltered* best score.
 
     The agent needs the raw best score to tell a rewrite "you are close" (0.47)
@@ -110,8 +121,9 @@ def search_with_scores(query: str, top_k: int = TOP_K) -> tuple[list[ScoredChunk
     """
     hits = _query_hits(query, top_k)
     best = round(max((hit.score for hit in hits), default=0.0), 3)
-    return [hit for hit in hits if hit.score >= MIN_SCORE], best
+    return [hit for hit in hits if hit.score >= RETRIEVAL_MIN_SCORE], best
 
 
-def search(query: str, top_k: int = TOP_K) -> list[ScoredChunk]:
+def search(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[ScoredChunk]:
+    """The only retrieval entry point for callers that do not need raw scores."""
     return search_with_scores(query, top_k=top_k)[0]

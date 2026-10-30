@@ -14,6 +14,7 @@ rephrases, which keeps the "grounded in retrieved context" guarantee intact.
 from __future__ import annotations
 
 import re
+from typing import TypedDict
 
 from app.models import AnswerProfile, LlmProvider
 from app.rag.llm import complete_chat
@@ -37,6 +38,13 @@ same wording scores the same and wastes a retrieval.
 """
 
 
+class Attempt(TypedDict):
+    """One retrieval attempt: the query tried and its best (unfiltered) score."""
+
+    query: str
+    bestScore: float
+
+
 def _audience_hint(profile: AnswerProfile) -> str:
     if profile.audience == "business":
         return "business decision-maker (service delivery and operational angle)"
@@ -55,7 +63,7 @@ def rewrite_query(
     provider: LlmProvider,
     question: str,
     profile: AnswerProfile,
-    tried: list[dict[str, object]],
+    tried: list[Attempt],
 ) -> str:
     """Return a retrieval query that aims at the same intent as `question`."""
     attempts = "\n".join(

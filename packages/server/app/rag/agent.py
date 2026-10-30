@@ -16,28 +16,19 @@ never turn a rewrite into an excuse to answer from the model's own knowledge.
 from __future__ import annotations
 
 import logging
-import os
-from functools import lru_cache
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from app.config import RETRIEVAL_MAX_REWRITES
 from app.models import AnswerProfile, LlmProvider
 from app.rag.chunk import ScoredChunk
 from app.rag.generate import NO_CONTEXT_ANSWER, generate_answer
 from app.rag.llm import resolve_llm_provider
 from app.rag.retrieve import search_with_scores
-from app.rag.rewrite import rewrite_query
+from app.rag.rewrite import Attempt, rewrite_query
 
 logger = logging.getLogger(__name__)
-
-# How many *rewrites* are allowed after the first, literal attempt.
-MAX_REWRITES = int(os.getenv("RETRIEVAL_MAX_REWRITES", "2"))
-
-
-class Attempt(TypedDict):
-    query: str
-    bestScore: float
 
 
 class AgentState(TypedDict, total=False):
@@ -52,19 +43,25 @@ class AgentState(TypedDict, total=False):
     llm: LlmProvider | None
 
 
-def _retrieve(state: AgentState) -> dict[str, object]:
+def _retrieve(state: AgentState) -> AgentState:
     """The tool: one cosine query against the vector store."""
     query = state["query"]
     passages, best = search_with_scores(query)
-    logger.info("retrieve #%d: %r → %d passages (best %.3f)",
-                len(state.get("attempts", [])) + 1, query, len(passages), best)
+    attempts = state.get("attempts", [])
+    logger.info(
+        "retrieve #%d: %r → %d passages (best %.3f)",
+        len(attempts) + 1,
+        query,
+        len(passages),
+        best,
+    )
     return {
         "passages": passages,
-        "attempts": [*state.get("attempts", []), Attempt(query=query, bestScore=best)],
+        "attempts": [*attempts, Attempt(query=query, bestScore=best)],
     }
 
 
-def _rewrite(state: AgentState) -> dict[str, object]:
+def _rewrite(state: AgentState) -> AgentState:
     provider = resolve_llm_provider(state.get("requested_llm"))
     query = rewrite_query(
         provider,
@@ -72,16 +69,17 @@ def _rewrite(state: AgentState) -> dict[str, object]:
         state["profile"],
         list(state.get("attempts", [])),
     )
-    logger.info("rewrite #%d: %r → %r", state.get("rewrites", 0) + 1, state["question"], query)
+    rewrites = state.get("rewrites", 0) + 1
+    logger.info("rewrite #%d: %r → %r", rewrites, state["question"], query)
     return {
         # A refused rewrite keeps the previous query: the attempt counter still
         # advances, so the loop terminates instead of cycling.
         "query": query or state["query"],
-        "rewrites": state.get("rewrites", 0) + 1,
+        "rewrites": rewrites,
     }
 
 
-def _generate(state: AgentState) -> dict[str, object]:
+def _generate(state: AgentState) -> AgentState:
     answer, llm, passages = generate_answer(
         state["question"],
         state.get("passages", []),
@@ -91,20 +89,20 @@ def _generate(state: AgentState) -> dict[str, object]:
     return {"answer": answer, "llm": llm, "passages": passages}
 
 
-def _give_up(_state: AgentState) -> dict[str, object]:
-    return {"answer": "", "llm": None, "passages": []}
+def _give_up(_state: AgentState) -> AgentState:
+    """Budget exhausted without a hit: refuse, with no sources and no LLM."""
+    return {"answer": NO_CONTEXT_ANSWER, "llm": None, "passages": []}
 
 
 def _route_after_retrieve(state: AgentState) -> Literal["generate", "rewrite", "give_up"]:
     if state.get("passages"):
         return "generate"
-    if state.get("rewrites", 0) >= MAX_REWRITES:
+    if state.get("rewrites", 0) >= RETRIEVAL_MAX_REWRITES:
         return "give_up"
     return "rewrite"
 
 
-@lru_cache(maxsize=1)
-def _graph():
+def _build_graph():
     builder = StateGraph(AgentState)
     builder.add_node("retrieve", _retrieve)
     builder.add_node("rewrite", _rewrite)
@@ -123,6 +121,10 @@ def _graph():
     return builder.compile()
 
 
+# The graph holds no per-request state: build it once at import and reuse it.
+_GRAPH = _build_graph()
+
+
 def answer_question(
     question: str,
     profile: AnswerProfile,
@@ -130,10 +132,10 @@ def answer_question(
 ) -> tuple[str, LlmProvider | None, list[ScoredChunk]]:
     """Run the agent. Returns (answer, provider, used_passages).
 
-    Provider is None only for the refusal paths, where no LLM answered. Raises
+    Provider is None only for the refusal path, where no LLM answered. Raises
     LlmUnavailable / LlmRequestError / EmbeddingUnavailable.
     """
-    final = _graph().invoke(
+    final = _GRAPH.invoke(
         AgentState(
             question=question,
             profile=profile,
@@ -143,7 +145,4 @@ def answer_question(
             attempts=[],
         )
     )
-
-    if not final.get("answer"):
-        return NO_CONTEXT_ANSWER, None, []
     return final["answer"], final.get("llm"), list(final.get("passages", []))

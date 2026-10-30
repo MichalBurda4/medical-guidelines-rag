@@ -11,11 +11,12 @@ from __future__ import annotations
 import time
 import uuid
 
+from app.config import RETRIEVAL_TOP_K
 from app.models import DocumentRecord
 from app.rag.chunk import Chunk, ScoredChunk, chunk_text
-from app.rag.embed import get_embedder
+from app.rag.embed import embedder
 from app.rag.parse import extract_text
-from app.rag.retrieve import TOP_K, chunks_collection, documents_collection, search
+from app.rag.retrieve import chunks_collection, documents_collection, search
 
 
 class DocumentStore:
@@ -39,7 +40,7 @@ class DocumentStore:
     def has_documents(self) -> bool:
         return bool(self._documents) or chunks_collection().count() > 0
 
-    def search(self, query: str, top_k: int = TOP_K) -> list[ScoredChunk]:
+    def search(self, query: str, top_k: int = RETRIEVAL_TOP_K) -> list[ScoredChunk]:
         return search(query, top_k=top_k)
 
     def add(self, filename: str, data: bytes, mime_type: str) -> DocumentRecord:
@@ -52,7 +53,6 @@ class DocumentStore:
         if not doc_chunks:
             raise ValueError(f"Could not create chunks for “{filename}”.")
 
-        embedder = get_embedder()
         vectors = embedder.embed_passages([chunk.text for chunk in doc_chunks])
 
         chunks_collection().add(

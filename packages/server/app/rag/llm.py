@@ -8,28 +8,12 @@ medical answer.
 from __future__ import annotations
 
 import os
-from typing import Literal
+from dataclasses import dataclass
 
 import httpx
 
+from app.config import LLM_TIMEOUT
 from app.models import LlmAvailability, LlmProvider
-
-CLOUD: dict[LlmProvider, dict[str, str]] = {
-    "openai": {
-        "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY",
-        "model_env": "OPENAI_MODEL",
-        "default_model": "gpt-4o-mini",
-    },
-    "deepseek": {
-        "base_url": "https://api.deepseek.com/v1",
-        "api_key_env": "DEEPSEEK_API_KEY",
-        "model_env": "DEEPSEEK_MODEL",
-        "default_model": "deepseek-chat",
-    },
-}
-
-REQUEST_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
 
 class LlmUnavailable(RuntimeError):
@@ -40,28 +24,53 @@ class LlmRequestError(RuntimeError):
     """The provider answered with an error, a timeout, or empty content (HTTP 502)."""
 
 
-def _cloud_key_present(provider: LlmProvider) -> bool:
-    return bool(os.getenv(CLOUD[provider]["api_key_env"], "").strip())
+@dataclass(frozen=True)
+class _ProviderConfig:
+    base_url: str
+    api_key_env: str
+    model_env: str
+    default_model: str
+
+
+PROVIDERS: dict[LlmProvider, _ProviderConfig] = {
+    "openai": _ProviderConfig(
+        base_url="https://api.openai.com/v1",
+        api_key_env="OPENAI_API_KEY",
+        model_env="OPENAI_MODEL",
+        default_model="gpt-4o-mini",
+    ),
+    "deepseek": _ProviderConfig(
+        base_url="https://api.deepseek.com/v1",
+        api_key_env="DEEPSEEK_API_KEY",
+        model_env="DEEPSEEK_MODEL",
+        default_model="deepseek-chat",
+    ),
+}
+
+
+def _key_present(provider: LlmProvider) -> bool:
+    return bool(os.getenv(PROVIDERS[provider].api_key_env, "").strip())
 
 
 def llm_availability() -> LlmAvailability:
     return LlmAvailability(
-        openai=_cloud_key_present("openai"),
-        deepseek=_cloud_key_present("deepseek"),
+        openai=_key_present("openai"),
+        deepseek=_key_present("deepseek"),
     )
 
 
 def resolve_llm_provider(requested: LlmProvider | None) -> LlmProvider:
     if requested is not None:
-        if not _cloud_key_present(requested):
+        if not _key_present(requested):
             raise LlmUnavailable(
-                f"{requested}: missing API key. Add {CLOUD[requested]['api_key_env']} "
+                f"{requested}: missing API key. Add {PROVIDERS[requested].api_key_env} "
                 f"to .env at the repo root (or the compose environment)."
             )
         return requested
 
-    for provider in ("openai", "deepseek"):
-        if _cloud_key_present(provider):
+    # Dict order is the preference order: OpenAI first, then DeepSeek.
+    for provider in PROVIDERS:
+        if _key_present(provider):
             return provider
 
     raise LlmUnavailable(
@@ -70,16 +79,16 @@ def resolve_llm_provider(requested: LlmProvider | None) -> LlmProvider:
 
 
 def complete_chat(provider: LlmProvider, system: str, user: str) -> str:
-    config = CLOUD[provider]
-    api_key = os.getenv(config["api_key_env"], "").strip()
+    config = PROVIDERS[provider]
+    api_key = os.getenv(config.api_key_env, "").strip()
     if not api_key:
         raise LlmUnavailable(f"{provider}: missing API key.")
 
-    model = os.getenv(config["model_env"], "").strip() or config["default_model"]
+    model = os.getenv(config.model_env, "").strip() or config.default_model
 
     try:
         response = httpx.post(
-            f"{config['base_url']}/chat/completions",
+            f"{config.base_url}/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -92,7 +101,7 @@ def complete_chat(provider: LlmProvider, system: str, user: str) -> str:
                     {"role": "user", "content": user},
                 ],
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=LLM_TIMEOUT,
         )
     except httpx.HTTPError as error:
         raise LlmRequestError(f"{provider} request failed: {error}") from error
