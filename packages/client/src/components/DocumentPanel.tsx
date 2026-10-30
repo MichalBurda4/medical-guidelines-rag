@@ -5,16 +5,19 @@ import type {
   LanguageLevel,
   LlmAvailability,
   LlmProvider,
-} from '@medirag/shared'
+} from '../contract'
 import { ProfileControls } from './ProfileControls'
+
+export type HealthStatus = 'checking' | 'ready'
 
 interface DocumentPanelProps {
   documents: DocumentRecord[]
   uploading: boolean
   languageLevel: LanguageLevel
   audience: AudienceProfile
-  llm: LlmProvider
+  llm: LlmProvider | null
   llmAvailability: LlmAvailability
+  healthStatus: HealthStatus
   onLanguageLevelChange: (value: LanguageLevel) => void
   onAudienceChange: (value: AudienceProfile) => void
   onLlmChange: (value: LlmProvider) => void
@@ -35,6 +38,7 @@ export function DocumentPanel({
   audience,
   llm,
   llmAvailability,
+  healthStatus,
   onLanguageLevelChange,
   onAudienceChange,
   onLlmChange,
@@ -93,6 +97,7 @@ export function DocumentPanel({
         audience={audience}
         llm={llm}
         llmAvailability={llmAvailability}
+        healthStatus={healthStatus}
         onLanguageLevelChange={onLanguageLevelChange}
         onAudienceChange={onAudienceChange}
         onLlmChange={onLlmChange}

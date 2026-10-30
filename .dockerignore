@@ -1,0 +1,15 @@
+# Build context for packages/client/Dockerfile (repo root).
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.venv
+**/.venv
+**/__pycache__
+**/*.py[cod]
+.env
+**/.env
+.cursor
+docs
+sample-guidelines

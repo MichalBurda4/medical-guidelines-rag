@@ -1,9 +1,3 @@
----
-description: How language levels and audience profiles shape answers
-globs: packages/shared/src/**,packages/server/src/rag/profile.ts,packages/server/src/rag/generate.ts,packages/client/src/components/ProfileControls.tsx
-alwaysApply: false
----
-
 # Answer profiles
 
 Two independent settings, sent by the frontend in the `/api/chat` body:
@@ -12,26 +6,36 @@ Two independent settings, sent by the frontend in the `/api/chat` body:
 |---|---|---|
 | `languageLevel` | `child`, `teen`, `adult` | `adult` |
 | `audience` | `patient`, `business` | `patient` |
-| `llm` (chat body, not part of `AnswerProfile`) | `template`, `openai`, `deepseek` | omitted: OpenAI if keyed, else DeepSeek if keyed, else template |
+| `llm` (chat body, not part of `AnswerProfile`) | `openai`, `deepseek` | omitted: OpenAI if keyed, else DeepSeek if keyed, else 503 |
 
 There are only these two audiences. Do not add a third.
 
-Invalid values silently fall back to the defaults in `parseAnswerProfile`.
+Invalid values silently fall back to the defaults in `main.py`.
+
+There is **no template provider**: the server refuses to start without an LLM key, and
+`POST /api/chat` returns 503 when the requested provider has none.
+
+## Profiles are prompt-only
+
+Both settings are realised by `build_llm_system_prompt` in `packages/server/app/rag/profile.py`.
+Do **not** reintroduce regex term substitution, sentence picking or per-audience formatting in
+Python: that code was hardcoded to one sample guideline and squeezed every answer into the same
+shapes regardless of the question.
 
 ## Adding or changing a profile value
 
 Update **all** of:
 
-1. `packages/shared/src/index.ts` – the `LanguageLevel` / `AudienceProfile` unions (single source of truth)
-2. `packages/server/src/rag/profile.ts` – the allowed-values `Set`, `formatProfiledAnswer`
-   (template path) **and** `buildLlmSystemPrompt` (LLM path)
+1. `packages/client/src/contract.ts` and `packages/server/app/models.py` – unions / Literals
+2. `packages/server/app/rag/profile.py` – the instruction dictionaries
 3. `packages/client/src/components/ProfileControls.tsx` – the options list
 4. `scripts/test-hay-fever.mjs` – a test case for the new value
 
 ## Wording
 
-- `child`: short sentences, swap jargon via `SIMPLE_TERMS`, max 3 findings, remind to ask an adult/doctor.
-- `teen`: plain language, keep the medical term in parentheses via `TEEN_TERMS`.
+- `child`: short sentences, everyday words, explain jargon inline, remind to ask an adult/doctor.
+- `teen`: plain language, explain medical terms in brackets.
 - `adult`: precise wording, educational-not-diagnosis disclaimer.
 - `business`: decision brief – key outcomes, risks, operational notes.
-- New jargon replacements go into the term lists, not inline in the formatter.
+
+Add new wording to the instruction dictionaries, not inline in the prompt builder.

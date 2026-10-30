@@ -1,33 +1,47 @@
----
-description: Conventions for the RAG backend (parsing, chunking, storage, retrieval, generation)
-globs: packages/server/**/*.ts
-alwaysApply: false
----
+# RAG pipeline (`packages/server/app`)
 
-# RAG pipeline (`packages/server/src`)
-
-Flow: `rag/parse.ts` (txt/md/csv/pdf/docx → text) → `rag/chunk.ts` (~900 chars, 150 overlap,
-breaks at paragraph/sentence) → `rag/store.ts` (in-memory `Map` + array) → `rag/retrieve.ts`
-(TF-IDF cosine, top 4, min score 0.02) → `rag/generate.ts` (OpenAI or template fallback) →
-`rag/profile.ts` (language/audience).
+Flow: `rag/parse.py` (txt/md/csv/pdf/docx → text) → `rag/chunk.py` (splits the guideline on
+section headings, then LangChain `RecursiveCharacterTextSplitter`, ~900 / 150) →
+`rag/embed.py` (local Ollama `/api/embed`) → `rag/store.py` (writes chunks + an embedded document
+catalogue to Chroma) → `rag/retrieve.py` (Chroma HNSW, cosine) → `rag/agent.py` (LangGraph
+retrieve → rewrite loop) → `rag/generate.py` → `rag/profile.py`.
 
 ## Rules
 
-- Relative server imports use the `.js` suffix (`import { x } from './store.js'`) – ESM via `tsx`.
-- Types that the client also sees come from `@medirag/shared`; `src/types.ts` holds server-only
-  types (`Chunk`, `ScoredChunk`).
-- Mark API payloads with `satisfies ChatResponse` / `DocumentsResponse` so shape drift fails `tsc`.
-- Keep the module boundaries: `index.ts` only does HTTP; RAG logic lives in `src/rag/`.
-- `retrieveChunks(query, chunks, topK)` must keep returning `ScoredChunk[]` sorted by score.
-  A future vector store (embeddings + nearest-neighbour) should replace its internals,
-  not its signature.
-- Storage is in-memory: everything is lost on restart. Don't assume persistence.
-- Chat completions go through `rag/llm.ts` (`completeChat`). OpenAI and DeepSeek share that
-  helper; do not copy `fetch` into `generate.ts`. New OpenAI-compatible providers get an
-  entry in `CLOUD` there.
-- `generateAnswerWithOptionalLlm` must fall back to `generateAnswer` (and `llm: 'template'`)
-  on missing key, HTTP error or empty content – never surface a provider error to the user.
-- LLM prompt: answer ONLY from context, prefer practical outcomes over methodology,
-  say clearly when context is insufficient.
-- New file types: add them in `parse.ts` and throw `Unsupported file type` for anything else.
-- Return API errors as `{ error: string }` (`ApiError`) with a fitting status code.
+- Keep FastAPI in `main.py`; RAG logic stays under `app/rag/`.
+- Pydantic models in `app/models.py` must stay aligned with `packages/client/src/contract.ts`.
+  Nothing generates one from the other, so a field change needs both sides edited.
+- API errors use `{ "error": string }` for **all** failures, including 422 validation errors
+  (see the two exception handlers), not FastAPI's default `detail`.
+- `store.search(question, top_k)` is the only retrieval entry point. Chroma fills short result
+  lists with its nearest neighbours regardless of relevance, so `retrieve.search` drops every hit
+  below `RETRIEVAL_MIN_SCORE`. Never fabricate scores, or off-topic questions turn into confident
+  medical advice.
+- The query reaches retrieval through `rag/agent.py` (LangGraph). The first attempt uses the user's
+  literal question; if nothing clears the threshold the graph rewrites the query
+  (`rag/rewrite.py`, LLM, up to `RETRIEVAL_MAX_REWRITES`, default 2) and retrieves again. The
+  rewrite only rephrases — it must never add facts — and the graph still refuses with
+  `NO_CONTEXT_ANSWER` when every attempt is empty. Do not "fix" a weak match by lowering the
+  threshold: that readmits off-topic questions.
+- Chroma returns a **distance**; `retrieve.search` converts with `1 - distance` and callers only
+  ever see a similarity. Do not compare a distance to `MIN_SCORE`, and keep the conversion in one
+  place.
+- Embeddings come from Ollama only. Never pass an `embedding_function` to Chroma: the default one
+  downloads a model, which breaks the "local model, no surprise network calls" requirement.
+- The collection name is derived from `EMBEDDING_MODEL`. A different model has a different
+  dimension and Chroma rejects mixed dimensions, so do not pin one collection name across models.
+- `Chroma is the only state`: chunks in `chunks_*`, the document catalogue in `documents_*`.
+  `DocumentStore.hydrate()` reloads the catalogue at startup. Never keep a second authoritative
+  copy in memory or in a JSON file.
+- Chunks stay section-scoped: the heading is kept in `chunk.text` and in metadata, so section
+  names remain searchable and the LLM knows whether a passage is patient or operational.
+- `generate.py` returns the passages it actually put in the prompt; `main.py` reports those as
+  `sources`. Do not report the raw retrieval result.
+- No relevant chunk above the threshold → `NO_CONTEXT_ANSWER` with **no** sources and `llm: null`.
+  Never let the LLM answer from its own knowledge.
+- Chat completions go through `rag/llm.py`. `LlmUnavailable` (no key) → 503,
+  `LlmRequestError` (provider failure) → 502. There is no template fallback.
+- Startup runs `preflight()`, which fails fast when Chroma is unreachable, the embedding model is
+  missing, or no LLM key exists. Keep the error messages actionable.
+- New file types: add them in `parse.py` and raise `Unsupported file type` for anything else.
+- Python deps live in `pyproject.toml`; use `uv sync` / `uv run`.

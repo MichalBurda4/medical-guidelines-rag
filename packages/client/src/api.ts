@@ -7,7 +7,7 @@ import type {
   DocumentsResponse,
   HealthResponse,
   LlmProvider,
-} from '@medirag/shared'
+} from './contract'
 
 const API_BASE = '/api'
 

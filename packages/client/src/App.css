@@ -100,7 +100,10 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  flex: 1;
+  /* The sidebar scrolls itself, so this section must keep its natural height.
+     With `flex: 1` it collapsed to 0px on short viewports, which clipped the
+     document list and made the remove button unclickable. */
+  flex: 0 0 auto;
 }
 
 .docs-section h2 {
@@ -289,6 +292,18 @@
 
 .profile-options button:disabled:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.llm-missing {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #f4b6a6;
+}
+
+.llm-missing code {
+  font-size: 0.72rem;
+  color: var(--text-on-dark);
 }
 
 .messages {

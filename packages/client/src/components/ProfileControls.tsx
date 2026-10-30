@@ -1,10 +1,11 @@
-import type { AudienceProfile, LanguageLevel, LlmAvailability, LlmProvider } from '@medirag/shared'
+import type { AudienceProfile, LanguageLevel, LlmAvailability, LlmProvider } from '../contract'
 
 interface ProfileControlsProps {
   languageLevel: LanguageLevel
   audience: AudienceProfile
-  llm: LlmProvider
+  llm: LlmProvider | null
   llmAvailability: LlmAvailability
+  healthStatus: 'checking' | 'ready'
   onLanguageLevelChange: (value: LanguageLevel) => void
   onAudienceChange: (value: AudienceProfile) => void
   onLlmChange: (value: LlmProvider) => void
@@ -25,9 +26,8 @@ const LLM_OPTIONS: Array<{
   value: LlmProvider
   label: string
   hint: string
-  unavailable?: string
+  unavailable: string
 }> = [
-  { value: 'template', label: 'Template', hint: 'No API key needed' },
   {
     value: 'openai',
     label: 'OpenAI',
@@ -42,16 +42,12 @@ const LLM_OPTIONS: Array<{
   },
 ]
 
-function llmEnabled(value: LlmProvider, availability: LlmAvailability): boolean {
-  if (value === 'template') return true
-  return availability[value]
-}
-
 export function ProfileControls({
   languageLevel,
   audience,
   llm,
   llmAvailability,
+  healthStatus,
   onLanguageLevelChange,
   onAudienceChange,
   onLlmChange,
@@ -96,9 +92,21 @@ export function ProfileControls({
 
       <div className="profile-group">
         <h2>Answer model</h2>
+        {llm === null && (
+          <p className="llm-missing">
+            {healthStatus === 'checking' ? (
+              'Checking which answer models are available…'
+            ) : (
+              <>
+                No LLM configured — set OPENAI_API_KEY or DEEPSEEK_API_KEY in
+                <code> .env</code> at the repo root and restart the API.
+              </>
+            )}
+          </p>
+        )}
         <div className="profile-options" role="radiogroup" aria-label="Answer model">
           {LLM_OPTIONS.map((option) => {
-            const enabled = llmEnabled(option.value, llmAvailability)
+            const enabled = llmAvailability[option.value]
             return (
               <button
                 key={option.value}
